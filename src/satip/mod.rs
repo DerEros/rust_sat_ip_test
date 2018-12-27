@@ -1,3 +1,2 @@
-pub const SAT_IP_DISCOVERY_ADDRESS: &str = "239.255.255.250";
-pub const SAT_IP_DISCOVERY_PORT: i32 = 1900;
+pub mod discovery;
 
