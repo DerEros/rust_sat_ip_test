@@ -10,7 +10,7 @@ use log::LevelFilter;
 
 mod satip;
 
-const BIND_ADDRESS: &str = "192.168.178.42:31222";
+const BIND_ADDRESS: &str = "0.0.0.0:0";
 
 fn default_logging_setup() -> () {
     let stdout = ConsoleAppender::builder().build();

@@ -24,6 +24,7 @@ USER-AGENT: Linux/1.0 UPnP/1.1 ernasatip/1.0
 pub fn discover_servers(bind_address: &str) -> io::Result<String> {
     info!("Querying for SAT>IP servers using '{}'", bind_address);
     let socket = UdpSocket::bind(bind_address)?;
+    debug!("Binding to '{}'", socket.local_addr()?);
 
     send_discovery_request(&socket)?;
     let (notify_message, source) = receive_notify_message(&socket)?;
