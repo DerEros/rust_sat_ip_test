@@ -1,0 +1,7 @@
+[package]
+name = "rust_sat_ip_test"
+version = "0.1.0"
+authors = ["Eros Candelaresi <eros@candelaresi.de>"]
+edition = "2018"
+
+[dependencies]
