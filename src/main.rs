@@ -1,9 +1,10 @@
 mod satip;
 
+const BIND_ADDRESS: &str = "192.168.178.42:31222";
+
 fn main() {
     println!("Hello, world!");
 
-    satip::discovery::send_discovery_request();
-
-    println!("Reply:\n{}", satip::discovery::receive_notify_message().unwrap());
+    println!("Reply:\n{}",
+             satip::discovery::discover_servers(BIND_ADDRESS).unwrap());
 }
