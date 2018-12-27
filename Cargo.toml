@@ -5,3 +5,5 @@ authors = ["Eros Candelaresi <eros@candelaresi.de>"]
 edition = "2018"
 
 [dependencies]
+log = "0.4.6"
+log4rs = "0.8.1"
