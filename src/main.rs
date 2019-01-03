@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate log4rs;
+extern crate tokio;
 
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::Config;
