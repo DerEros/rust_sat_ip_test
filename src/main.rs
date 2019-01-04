@@ -37,7 +37,7 @@ fn main() {
             debug!("Loaded configuration: \n{:?}", config);
             config
         })
-        .and_then(|config| satip::discovery::discover_satip_servers(&config))
+        .and_then(|config| satip::discovery::discover_satip_servers(config))
         .map_err(|err| { error!("SAT>IP server discovery failed! {}", err); () });
 
     tokio::run(full_future);

@@ -2,18 +2,19 @@ use std::error::Error as StdError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ErrorType {
-    InvalidIpFormat
+    InvalidIpFormat,
+    CouldNotBindUdpSocket
 }
 
 #[derive(Debug)]
 pub struct Error {
     pub error_type: ErrorType,
-    pub message: &'static str,
+    pub message: String,
 }
 
 impl StdError for Error {
     fn description(&self) -> &str {
-        self.message
+        self.message.as_str()
     }
 
     fn cause(&self) -> Option<&dyn StdError> {
