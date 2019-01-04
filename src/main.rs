@@ -2,16 +2,17 @@
 extern crate log;
 extern crate log4rs;
 extern crate tokio;
+extern crate futures;
 
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::Config;
 use log4rs::config::Appender;
 use log4rs::config::Root;
 use log::LevelFilter;
+use tokio::prelude::future;
+use futures::Future;
 
 mod satip;
-
-const BIND_ADDRESS: &str = "0.0.0.0:0";
 
 fn default_logging_setup() -> () {
     let stdout = ConsoleAppender::builder().build();
@@ -28,6 +29,13 @@ fn main() {
 
     info!("Hello, world!");
 
-    info!("Reply:\n{}",
-             satip::discovery::discover_servers(BIND_ADDRESS).unwrap());
+    let config_future = future::ok::<satip::config::Config, ()>(satip::config::default_config());
+
+    let full_future = config_future.map(|config| {
+            debug!("Loaded configuration: \n{:?}", config);
+            config
+        })
+        .and_then(|config| satip::discovery::discover_satip_servers(&config));
+
+    tokio::run(full_future);
 }

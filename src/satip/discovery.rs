@@ -1,12 +1,16 @@
-use std::net::UdpSocket;
-use std::str::from_utf8;
-use std::io;
 use std::net::SocketAddr;
+
+use crate::satip::config::Config;
+use tokio::net::UdpSocket;
+use tokio::prelude::Future;
+use std::error::Error;
+use tokio::prelude::future;
+use std::str::FromStr;
 
 pub const SAT_IP_DISCOVERY_ADDRESS: &str = "239.255.255.250";
 pub const SAT_IP_DISCOVERY_PORT: i32 = 1900;
 
-pub fn discovery_address() -> String {
+fn discovery_address() -> String {
     format!("{}:{}", SAT_IP_DISCOVERY_ADDRESS, SAT_IP_DISCOVERY_PORT)
 }
 
@@ -21,32 +25,27 @@ USER-AGENT: Linux/1.0 UPnP/1.1 ernasatip/1.0
 ", discovery_address())
 }
 
-pub fn discover_servers(bind_address: &str) -> io::Result<String> {
-    info!("Querying for SAT>IP servers using '{}'", bind_address);
-    let socket = open_socket(bind_address)?;
-
-    send_discovery_request(&socket)?;
-    let (notify_message, source) = receive_notify_message(&socket)?;
-
-    debug!("Got reply from SAT>IP server '{}'", source);
-    Ok(notify_message)
+#[derive(Debug)]
+struct DiscoveryContext {
+    pub config: Config,
+    pub socket_addr: SocketAddr,
+    pub socket: UdpSocket
 }
 
-fn open_socket(bind_address: &str) -> io::Result<UdpSocket> {
-    let socket = UdpSocket::bind(bind_address)?;
-    debug!("Binding to '{}'", socket.local_addr()?);
-    Ok(socket)
+impl DiscoveryContext {
+    fn new(config: &Config) -> impl Future<Item = DiscoveryContext, Error = ()> {
+        future::ok::<DiscoveryContext, ()>(DiscoveryContext {
+            config: *config,
+            socket_addr: SocketAddr::from_str("0.0.0.0:0").unwrap(),
+            socket: UdpSocket::bind(&SocketAddr::from_str("0.0.0.0:0").unwrap()).unwrap()
+        })
+    }
 }
 
-fn send_discovery_request(socket: &UdpSocket) -> io::Result<usize> {
-    socket.send_to(search_servers_request().as_bytes(), discovery_address())
-}
+pub fn discover_satip_servers(config: &Config) -> impl Future<Item = (), Error = ()> {
+    info!("Going to discover available SAT>IP servers");
 
-fn receive_notify_message(socket: &UdpSocket) -> io::Result<(String, SocketAddr)> {
-    let mut buf = [0; 5000];
-    let (_, source) = socket.recv_from(&mut buf)?;
+    let discovery_context = DiscoveryContext::new(config);
 
-    let reply_str: &str = from_utf8(&buf).unwrap();
-
-    Ok((reply_str.to_owned(), source))
+    discovery_context.map(|context| debug!("Using discovery context:\n{:?}", context))
 }
