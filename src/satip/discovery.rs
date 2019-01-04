@@ -7,23 +7,16 @@ use tokio::prelude::Future;
 use tokio::prelude::future;
 use std::str::FromStr;
 
-pub const SAT_IP_DISCOVERY_ADDRESS: &str = "239.255.255.250";
-pub const SAT_IP_DISCOVERY_PORT: i32 = 1900;
-
-fn discovery_address() -> String {
-    format!("{}:{}", SAT_IP_DISCOVERY_ADDRESS, SAT_IP_DISCOVERY_PORT)
-}
-
-fn search_servers_request() -> String {
-    format!("M-SEARCH * HTTP/1.1
-HOST: {}
-MAN: \"ssdp:discover\"
-MX: 2
-ST: urn:ses-com:device:SatIPServer:1
-USER-AGENT: Linux/1.0 UPnP/1.1 ernasatip/1.0
-\r\n
-", discovery_address())
-}
+//fn search_servers_request() -> String {
+//    format!("M-SEARCH * HTTP/1.1
+//HOST: {}
+//MAN: \"ssdp:discover\"
+//MX: 2
+//ST: urn:ses-com:device:SatIPServer:1
+//USER-AGENT: Linux/1.0 UPnP/1.1 ernasatip/1.0
+//\r\n
+//", discovery_address())
+//}
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -48,5 +41,5 @@ pub fn discover_satip_servers(config: &Config) -> impl Future<Item = (), Error =
     let discovery_context = DiscoveryContext::new(config);
 
     discovery_context.map(|context| debug!("Using discovery context:\n{:?}", context))
-        .and_then(|x| future::err(Error{error_type: ErrorType::InvalidIpFormat, message: "Foo bar" }))
+        .and_then(|_| future::err(Error{error_type: ErrorType::InvalidIpFormat, message: "Foo bar" }))
 }

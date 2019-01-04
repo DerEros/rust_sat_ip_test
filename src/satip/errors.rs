@@ -1,5 +1,4 @@
 use std::error::Error as StdError;
-use std::borrow::Borrow;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ErrorType {
