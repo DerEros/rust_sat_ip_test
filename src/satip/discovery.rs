@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 
 use crate::satip::config::Config;
+use crate::satip::errors::*;
 use tokio::net::UdpSocket;
 use tokio::prelude::Future;
-use std::error::Error;
 use tokio::prelude::future;
 use std::str::FromStr;
 
@@ -33,8 +33,8 @@ struct DiscoveryContext {
 }
 
 impl DiscoveryContext {
-    fn new(config: &Config) -> impl Future<Item = DiscoveryContext, Error = ()> {
-        future::ok::<DiscoveryContext, ()>(DiscoveryContext {
+    fn new(config: &Config) -> impl Future<Item = DiscoveryContext, Error = Error> {
+        future::ok::<DiscoveryContext, Error>(DiscoveryContext {
             config: *config,
             socket_addr: SocketAddr::from_str("0.0.0.0:0").unwrap(),
             socket: UdpSocket::bind(&SocketAddr::from_str("0.0.0.0:0").unwrap()).unwrap()
@@ -42,10 +42,11 @@ impl DiscoveryContext {
     }
 }
 
-pub fn discover_satip_servers(config: &Config) -> impl Future<Item = (), Error = ()> {
+pub fn discover_satip_servers(config: &Config) -> impl Future<Item = (), Error = Error> {
     info!("Going to discover available SAT>IP servers");
 
     let discovery_context = DiscoveryContext::new(config);
 
     discovery_context.map(|context| debug!("Using discovery context:\n{:?}", context))
+        .and_then(|x| future::err(Error{error_type: ErrorType::InvalidIpFormat, message: "Foo bar" }))
 }

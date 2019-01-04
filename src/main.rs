@@ -4,6 +4,8 @@ extern crate log4rs;
 extern crate tokio;
 extern crate futures;
 
+mod satip;
+
 use log4rs::append::console::ConsoleAppender;
 use log4rs::config::Config;
 use log4rs::config::Appender;
@@ -12,7 +14,7 @@ use log::LevelFilter;
 use tokio::prelude::future;
 use futures::Future;
 
-mod satip;
+use crate::satip::errors::Error;
 
 fn default_logging_setup() -> () {
     let stdout = ConsoleAppender::builder().build();
@@ -29,13 +31,14 @@ fn main() {
 
     info!("Hello, world!");
 
-    let config_future = future::ok::<satip::config::Config, ()>(satip::config::default_config());
+    let config_future = future::ok::<satip::config::Config, Error>(satip::config::default_config());
 
     let full_future = config_future.map(|config| {
             debug!("Loaded configuration: \n{:?}", config);
             config
         })
-        .and_then(|config| satip::discovery::discover_satip_servers(&config));
+        .and_then(|config| satip::discovery::discover_satip_servers(&config))
+        .map_err(|err| { error!("SAT>IP server discovery failed! {}", err); () });
 
     tokio::run(full_future);
 }

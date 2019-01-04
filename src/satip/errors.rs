@@ -1,4 +1,5 @@
 use std::error::Error as StdError;
+use std::borrow::Borrow;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ErrorType {
@@ -9,7 +10,6 @@ pub enum ErrorType {
 pub struct Error {
     pub error_type: ErrorType,
     pub message: &'static str,
-    pub cause: Option<&'static StdError>
 }
 
 impl StdError for Error {
@@ -18,18 +18,16 @@ impl StdError for Error {
     }
 
     fn cause(&self) -> Option<&dyn StdError> {
-        self.cause
+        None
+    }
+
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        None
     }
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self.cause {
-            Some(cause) => write!(f, "[{:?}]: {}\nCaused by: {}",
-                                  self.error_type,
-                                  self.message,
-                                  cause),
-            None => write!(f, "[{:?}]: {}", self.error_type, self.message)
-        }
+        write!(f, "[{:?}]: {}", self.error_type, self.message)
     }
 }
