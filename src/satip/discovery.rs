@@ -4,7 +4,6 @@ use crate::satip::config::Config;
 use crate::satip::errors::*;
 use tokio::net::UdpSocket;
 use tokio::prelude::Future;
-use tokio::prelude::future;
 use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
 
@@ -59,11 +58,9 @@ fn parse_address_future(address_string: &str) -> impl Future<Item = SocketAddr, 
 }
 
 fn bind_udp_socket(socket_address: SocketAddr) -> impl Future<Item = UdpSocket, Error = Error> {
-    match UdpSocket::bind(&socket_address) {
-        Ok(socket) => future::ok(socket),
-        Err(err) => future::err(Error {
-            error_type: ErrorType::CouldNotBindUdpSocket,
-            message: format!("Unable to bind to UDP socket. Cause: {}", err)
-        })
-    }
+    UdpSocket::bind(&socket_address)
+        .map_err(|err| Error {
+                error_type: ErrorType::CouldNotBindUdpSocket,
+                message: format!("Unable to bind to UDP socket. Cause: {}", err)
+        }).into_future()
 }
