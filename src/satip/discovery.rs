@@ -33,9 +33,9 @@ impl DiscoveryContext {
                 let udp_socket_future = bind_udp_socket(parsed_address);
 
                 udp_socket_future.map(move |socket| DiscoveryContext {
-                    config: config,
+                    config,
                     socket_addr: parsed_address,
-                    socket: socket
+                    socket
                 })
             })
     }
