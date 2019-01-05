@@ -20,7 +20,7 @@ fn default_logging_setup() -> () {
     let stdout = ConsoleAppender::builder().build();
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+        .build(Root::builder().appender("stdout").build(LevelFilter::Trace))
         .unwrap();
 
     let _ = log4rs::init_config(config).unwrap();
