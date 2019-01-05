@@ -55,6 +55,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         .and_then(|(request, context)|
             send_discovery_request(context.socket, context.broadcast_address, request)
         )
+        .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
         .map(|_| ())
 }
 
