@@ -56,6 +56,13 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
             send_discovery_request(context.socket, context.broadcast_address, request)
         )
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
+        .and_then(wait_for_discovery_responses)
+        .map(|(socket, buffer, size, sender)| {
+            debug!("Received {} bytes discovery message from {:?}", size, sender);
+            trace!("Discovered:\n{}",
+                   String::from_utf8(buffer.clone()).unwrap_or("<Unable to parse result>".to_string()));
+            (socket, buffer, size, sender)
+        })
         .map(|_| ())
 }
 
@@ -87,5 +94,16 @@ fn send_discovery_request(socket: UdpSocket,
         .map_err(|err| Error {
             error_type: ErrorType::SendUdpRequestError,
             message: format!("Error sending discovery request. Cause {}", err)
+        })
+}
+
+fn wait_for_discovery_responses(socket: UdpSocket) ->
+        impl Future<Item = (UdpSocket, Vec<u8>, usize, SocketAddr), Error = Error> {
+    let buffer = [0u8; 65_536].to_vec();
+    debug!("Waiting for discovery message to arrive on {:?}", socket);
+    socket.recv_dgram(buffer)
+        .map_err(|_| Error {
+            error_type: ErrorType::SendUdpRequestError,
+            message: "Error receiving discovery response".to_string()
         })
 }
