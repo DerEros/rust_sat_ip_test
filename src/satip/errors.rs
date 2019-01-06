@@ -4,7 +4,8 @@ use std::error::Error as StdError;
 pub enum ErrorType {
     InvalidIpFormat,
     CouldNotBindUdpSocket,
-    SendUdpRequestError
+    SendUdpRequestError,
+    ReceivingDiscoveryMessageError,
 }
 
 #[derive(Debug)]

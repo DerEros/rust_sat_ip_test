@@ -102,8 +102,8 @@ fn wait_for_discovery_responses(socket: UdpSocket) ->
     let buffer = [0u8; 65_536].to_vec();
     debug!("Waiting for discovery message to arrive on {:?}", socket);
     socket.recv_dgram(buffer)
-        .map_err(|_| Error {
-            error_type: ErrorType::SendUdpRequestError,
-            message: "Error receiving discovery response".to_string()
+        .map_err(|err| Error {
+            error_type: ErrorType::ReceivingDiscoveryMessageError,
+            message: format!("Error receiving discovery response. Cause {}", err)
         })
 }
