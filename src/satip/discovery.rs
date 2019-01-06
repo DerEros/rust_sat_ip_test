@@ -6,6 +6,8 @@ use tokio::net::UdpSocket;
 use tokio::prelude::Future;
 use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
+use hyper::Request;
+use hyper::client::Client;
 
 fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> String {
     debug!("Generating discovery request for target '{}' using user agent '{}'",
@@ -20,6 +22,16 @@ ST: urn:ses-com:device:SatIPServer:1
 USER-AGENT: {}
 \r\n
 ", target_address, user_agent);
+
+    let mut req = Request::builder();
+    let r = req.method("M-SEARCH").uri("*")
+        .header("HOST", target_address.to_string())
+        .header("MAN", "ssdp:discover")
+        .header("MX", "2")
+        .header("ST", "urn:ses-com:device:SatIPServer:1")
+        .header("USER-AGENT", user_agent).body(()).unwrap();
+
+    info!("Generated request: {}", r.into_buf());
 
     trace!("Generated request:\n{}", request);
     request
