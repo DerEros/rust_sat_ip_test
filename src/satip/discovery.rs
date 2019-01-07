@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use crate::satip::config::Config;
 use crate::satip::errors::*;
+use crate::satip::helpers::*;
 use tokio::net::UdpSocket;
 use tokio::prelude::Future;
 use std::str::FromStr;
@@ -31,7 +32,7 @@ USER-AGENT: {}
         .header("ST", "urn:ses-com:device:SatIPServer:1")
         .header("USER-AGENT", user_agent).body(()).unwrap();
 
-    info!("Generated request: {}", r.into_buf());
+    info!("Generated request: {}", String::from(RenderableRequest(r)));
 
     trace!("Generated request:\n{}", request);
     request
