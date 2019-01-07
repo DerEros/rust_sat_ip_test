@@ -3,6 +3,7 @@ extern crate log;
 extern crate log4rs;
 extern crate tokio;
 extern crate futures;
+extern crate http;
 
 mod satip;
 

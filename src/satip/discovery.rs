@@ -8,34 +8,23 @@ use tokio::prelude::Future;
 use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
 use hyper::Request;
-use hyper::client::Client;
 
 fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> String {
     debug!("Generating discovery request for target '{}' using user agent '{}'",
            target_address.to_string(),
            user_agent);
 
-    let request = format!("M-SEARCH * HTTP/1.1
-HOST: {}
-MAN: \"ssdp:discover\"
-MX: 2
-ST: urn:ses-com:device:SatIPServer:1
-USER-AGENT: {}
-\r\n
-", target_address, user_agent);
-
-    let mut req = Request::builder();
-    let r = req.method("M-SEARCH").uri("*")
+    let request = Request::builder().method("M-SEARCH").uri("*")
         .header("HOST", target_address.to_string())
         .header("MAN", "ssdp:discover")
         .header("MX", "2")
         .header("ST", "urn:ses-com:device:SatIPServer:1")
         .header("USER-AGENT", user_agent).body(()).unwrap();
+    let request_as_string = String::from(RenderableRequest(request));
 
-    info!("Generated request: {}", String::from(RenderableRequest(r)));
+    info!("Generated request:\n{}", request_as_string);
 
-    trace!("Generated request:\n{}", request);
-    request
+    request_as_string
 }
 
 #[derive(Debug)]
