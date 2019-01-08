@@ -4,14 +4,14 @@ use http::header::{HeaderMap, HeaderValue};
 
 pub struct RenderableRequest(pub Request<()>);
 
-impl From<RenderableRequest> for String {
+impl From<RenderableRequest> for Vec<u8> {
     fn from(RenderableRequest(req): RenderableRequest) -> Self {
         format!("{} {} {:?}\n{}\r\n",
             req.method(),
             req.uri(),
             req.version(),
             String::from(RenderableHeaderMap(req.headers())),
-        )
+        ).into_bytes()
     }
 }
 

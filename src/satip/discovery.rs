@@ -9,7 +9,7 @@ use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
 use hyper::Request;
 
-fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> String {
+fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Vec<u8> {
     debug!("Generating discovery request for target '{}' using user agent '{}'",
            target_address.to_string(),
            user_agent);
@@ -20,11 +20,12 @@ fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Strin
         .header("MX", "2")
         .header("ST", "urn:ses-com:device:SatIPServer:1")
         .header("USER-AGENT", user_agent).body(()).unwrap();
-    let request_as_string = String::from(RenderableRequest(request));
+    let serialized_request: Vec<u8> = RenderableRequest(request).into();
 
-    info!("Generated request:\n{}", request_as_string);
+    trace!("Generated request:\n{}",
+           String::from_utf8(serialized_request.clone()).unwrap_or("<unable to stringify>".to_string()));
 
-    request_as_string
+    serialized_request
 }
 
 #[derive(Debug)]
@@ -51,8 +52,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
 
     discovery_context
         .map(|context| { debug!("Using discovery context:\n{:?}", context); context })
-        .map(|context| (search_servers_request(context.broadcast_address, config.user_agent)
-                            .as_bytes().to_vec(), context))
+        .map(|context| (search_servers_request(context.broadcast_address, config.user_agent), context))
         .into_future()
         .and_then(|(request, context)|
             send_discovery_request(context.socket, context.broadcast_address, request)
