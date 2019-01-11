@@ -4,10 +4,11 @@ use crate::satip::config::Config;
 use crate::satip::errors::*;
 use crate::satip::helpers::*;
 use tokio::net::UdpSocket;
-use tokio::prelude::Future;
+use tokio::prelude::*;
 use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
 use hyper::Request;
+use std::time::Duration;
 
 fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Vec<u8> {
     debug!("Generating discovery request for target '{}' using user agent '{}'",
@@ -58,7 +59,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
             send_discovery_request(context.socket, context.broadcast_address, request)
         )
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
-        .and_then(wait_for_discovery_responses)
+        .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
         .map(|(socket, buffer, size, sender)| {
             debug!("Received {} bytes discovery message from {:?}", size, sender);
             trace!("Discovered:\n{}",
@@ -99,7 +100,7 @@ fn send_discovery_request(socket: UdpSocket,
         })
 }
 
-fn wait_for_discovery_responses(socket: UdpSocket) ->
+fn wait_for_discovery_responses(socket: UdpSocket, wait_time: Duration) ->
         impl Future<Item = (UdpSocket, Vec<u8>, usize, SocketAddr), Error = Error> {
     let buffer = [0u8; 65_536].to_vec();
     debug!("Waiting for discovery message to arrive on {:?}", socket);
@@ -108,4 +109,36 @@ fn wait_for_discovery_responses(socket: UdpSocket) ->
             error_type: ErrorType::ReceivingDiscoveryMessageError,
             message: format!("Error receiving discovery response. Cause {}", err)
         })
+        .timeout(wait_time)
+        .then(translate_timeout_error)
+}
+
+fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Error>>)
+                              -> Result<T, Error> {
+    let _dummy_error = Error {
+        error_type: ErrorType::ReceivingDiscoveryMessageError,
+        message: "Foobar".to_string()
+    };
+
+    Ok(result.unwrap())
+
+//    match result {
+//        Err(e@TimeoutError) if (e.is_inner()) => Err(e.into_inner().unwrap()),  // A wrapped upstream error
+//        Err(e@TimeoutError) if (e.is_elapsed()) =>           // Time elapsed, no result
+//            Err(Error {
+//                error_type: ErrorType::ReceivingDiscoveryMessageError,
+//                message: "Timeout waiting for discovery replies".to_string()
+//            }),
+//        Err(e@TimeoutError) if (e.is_timer()) =>
+//            Err(Error {
+//                error_type: ErrorType::ReceivingDiscoveryMessageError,
+//                message: format!("Error while waiting for discovery replies: {}", e).to_string()
+//            }),
+//        Err(_) =>
+//            Err(Error {
+//                error_type: ErrorType::ReceivingDiscoveryMessageError,
+//                message: "Unexpected error while waiting for discovery replies".to_string()
+//            }),
+//        o@Ok(_) => o
+//    }
 }
