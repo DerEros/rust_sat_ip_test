@@ -117,28 +117,23 @@ fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Err
                               -> Result<T, Error> {
     let _dummy_error = Error {
         error_type: ErrorType::ReceivingDiscoveryMessageError,
-        message: "Foobar".to_string()
+        message: "Unknown error while waiting for discovery replies".to_string()
     };
 
-    Ok(result.unwrap())
+    let timer_elapsed_error = Error {
+        error_type: ErrorType::ReceivingDiscoveryMessageError,
+        message: "Timer elapsed while waiting for discovery replies".to_string()
+    };
 
-//    match result {
-//        Err(e@TimeoutError) if (e.is_inner()) => Err(e.into_inner().unwrap()),  // A wrapped upstream error
-//        Err(e@TimeoutError) if (e.is_elapsed()) =>           // Time elapsed, no result
-//            Err(Error {
-//                error_type: ErrorType::ReceivingDiscoveryMessageError,
-//                message: "Timeout waiting for discovery replies".to_string()
-//            }),
-//        Err(e@TimeoutError) if (e.is_timer()) =>
-//            Err(Error {
-//                error_type: ErrorType::ReceivingDiscoveryMessageError,
-//                message: format!("Error while waiting for discovery replies: {}", e).to_string()
-//            }),
-//        Err(_) =>
-//            Err(Error {
-//                error_type: ErrorType::ReceivingDiscoveryMessageError,
-//                message: "Unexpected error while waiting for discovery replies".to_string()
-//            }),
-//        o@Ok(_) => o
-//    }
+    let timer_error = Error {
+        error_type: ErrorType::ReceivingDiscoveryMessageError,
+        message: "Unknown timer related error while waiting for discovery replies".to_string()
+    };
+
+    result.map_err(|err|
+        if err.is_inner() { err.into_inner().unwrap() }
+            else if err.is_elapsed() { timer_elapsed_error }
+            else if err.is_timer() { timer_error }
+            else { _dummy_error }
+    )
 }
