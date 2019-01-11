@@ -60,11 +60,19 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         )
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
         .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
-        .map(|(socket, buffer, size, sender)| {
-            debug!("Received {} bytes discovery message from {:?}", size, sender);
-            trace!("Discovered:\n{}",
-                   String::from_utf8(buffer.clone()).unwrap_or("<Unable to parse result>".to_string()));
-            (socket, buffer, size, sender)
+        .map(|discovery_response| {
+            match discovery_response {
+                Some((socket, buffer, size, sender)) => {
+                    debug!("Received {} bytes discovery message from {:?}", size, sender);
+                    trace!("Discovered:\n{}",
+                           String::from_utf8(buffer.clone()).unwrap_or("<Unable to parse result>".to_string()));
+                    Some((socket, buffer, size, sender))
+                }
+                None => {
+                    info!("SAT>IP server discovery finished but found no servers");
+                    None
+                }
+            }
         })
         .map(|_| ())
 }
@@ -82,8 +90,8 @@ fn bind_udp_socket(socket_address: SocketAddr) -> Result<UdpSocket, Error> {
     trace!("Binding to socket '{:?}'", socket_address);
     UdpSocket::bind(&socket_address)
         .map_err(|err| Error {
-                error_type: ErrorType::CouldNotBindUdpSocket,
-                message: format!("Unable to bind to UDP socket. Cause: {}", err)
+            error_type: ErrorType::CouldNotBindUdpSocket,
+            message: format!("Unable to bind to UDP socket. Cause: {}", err)
         })
 }
 
@@ -101,7 +109,7 @@ fn send_discovery_request(socket: UdpSocket,
 }
 
 fn wait_for_discovery_responses(socket: UdpSocket, wait_time: Duration) ->
-        impl Future<Item = (UdpSocket, Vec<u8>, usize, SocketAddr), Error = Error> {
+impl Future<Item = Option<(UdpSocket, Vec<u8>, usize, SocketAddr)>, Error = Error> {
     let buffer = [0u8; 65_536].to_vec();
     debug!("Waiting for discovery message to arrive on {:?}", socket);
     socket.recv_dgram(buffer)
@@ -114,15 +122,10 @@ fn wait_for_discovery_responses(socket: UdpSocket, wait_time: Duration) ->
 }
 
 fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Error>>)
-                              -> Result<T, Error> {
+                              -> Result<Option<T>, Error> {
     let _dummy_error = Error {
         error_type: ErrorType::ReceivingDiscoveryMessageError,
         message: "Unknown error while waiting for discovery replies".to_string()
-    };
-
-    let timer_elapsed_error = Error {
-        error_type: ErrorType::ReceivingDiscoveryMessageError,
-        message: "Timer elapsed while waiting for discovery replies".to_string()
     };
 
     let timer_error = Error {
@@ -130,10 +133,14 @@ fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Err
         message: "Unknown timer related error while waiting for discovery replies".to_string()
     };
 
-    result.map_err(|err|
-        if err.is_inner() { err.into_inner().unwrap() }
-            else if err.is_elapsed() { timer_elapsed_error }
+    result
+        .map(Some)
+        .or_else(|err| if err.is_elapsed() { Ok(None) } else { Err(err) })
+        .map_err(|err|
+            if err.is_inner() { err.into_inner().unwrap() }
             else if err.is_timer() { timer_error }
             else { _dummy_error }
-    )
+        )
+
+
 }
