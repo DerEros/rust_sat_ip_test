@@ -8,6 +8,7 @@ pub enum ErrorType {
     ReceivingDiscoveryMessageError,
     ServerDiscoveryTimeoutError,
     ServerDiscoveryUnknownTimeoutError,
+    CouldNotParseDiscoveryResponse,
 }
 
 #[derive(Debug)]

@@ -9,6 +9,7 @@ use std::str::FromStr;
 use tokio::prelude::future::IntoFuture;
 use hyper::Request;
 use std::time::Duration;
+use http::uri::Uri;
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -27,11 +28,17 @@ impl DiscoveryContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 struct RawDiscoveryResponse {
     pub buffer: Vec<u8>,
     pub size: usize,
     pub sender_addr: SocketAddr,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct DiscoveryResponse {
+    pub description_location: Uri,
+    pub usn: String,
 }
 
 pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = Error> {
@@ -49,6 +56,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
         .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
         .map(log_discovery_response)
+        .map(|raw_response| raw_response.map(parse_discovery_response))
         .map(|_| ())
 }
 
@@ -152,4 +160,13 @@ fn log_discovery_response(discovery_response: Option<RawDiscoveryResponse>) -> O
             None
         }
     }
+}
+
+fn parse_discovery_response(raw_response: RawDiscoveryResponse) -> Result<DiscoveryResponse, Error> {
+
+
+    Err(Error {
+        error_type: ErrorType::CouldNotParseDiscoveryResponse,
+        message: "Could not parse discovery response".to_string()
+    })
 }
