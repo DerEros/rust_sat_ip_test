@@ -6,6 +6,8 @@ pub enum ErrorType {
     CouldNotBindUdpSocket,
     SendUdpRequestError,
     ReceivingDiscoveryMessageError,
+    ServerDiscoveryTimeoutError,
+    ServerDiscoveryUnknownTimeoutError,
 }
 
 #[derive(Debug)]

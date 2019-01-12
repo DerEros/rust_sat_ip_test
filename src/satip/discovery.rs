@@ -124,13 +124,8 @@ impl Future<Item = Option<(UdpSocket, Vec<u8>, usize, SocketAddr)>, Error = Erro
 fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Error>>)
                               -> Result<Option<T>, Error> {
     let _dummy_error = Error {
-        error_type: ErrorType::ReceivingDiscoveryMessageError,
+        error_type: ErrorType::ServerDiscoveryUnknownTimeoutError,
         message: "Unknown error while waiting for discovery replies".to_string()
-    };
-
-    let timer_error = Error {
-        error_type: ErrorType::ReceivingDiscoveryMessageError,
-        message: "Unknown timer related error while waiting for discovery replies".to_string()
     };
 
     result
@@ -138,9 +133,14 @@ fn translate_timeout_error<T>(result: Result<T, tokio::timer::timeout::Error<Err
         .or_else(|err| if err.is_elapsed() { Ok(None) } else { Err(err) })
         .map_err(|err|
             if err.is_inner() { err.into_inner().unwrap() }
-            else if err.is_timer() { timer_error }
+            else if err.is_timer() { get_timer_error_message(err) }
             else { _dummy_error }
         )
+}
 
-
+fn get_timer_error_message(err: tokio::timer::timeout::Error<Error>) -> Error {
+    Error {
+        error_type: ErrorType::ServerDiscoveryTimeoutError,
+        message: format!("Timer related error while waiting for discovery replies: {}", err).to_string()
+    }
 }
