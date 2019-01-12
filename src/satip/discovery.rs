@@ -10,25 +10,6 @@ use tokio::prelude::future::IntoFuture;
 use hyper::Request;
 use std::time::Duration;
 
-fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Vec<u8> {
-    debug!("Generating discovery request for target '{}' using user agent '{}'",
-           target_address.to_string(),
-           user_agent);
-
-    let request = Request::builder().method("M-SEARCH").uri("*")
-        .header("HOST", target_address.to_string())
-        .header("MAN", "ssdp:discover")
-        .header("MX", "2")
-        .header("ST", "urn:ses-com:device:SatIPServer:1")
-        .header("USER-AGENT", user_agent).body(()).unwrap();
-    let serialized_request: Vec<u8> = RenderableRequest(request).into();
-
-    trace!("Generated request:\n{}",
-           String::from_utf8(serialized_request.clone()).unwrap_or("<unable to stringify>".to_string()));
-
-    serialized_request
-}
-
 #[derive(Debug)]
 struct DiscoveryContext {
     pub config: Config,
@@ -46,6 +27,13 @@ impl DiscoveryContext {
     }
 }
 
+#[derive(Debug)]
+struct RawDiscoveryResponse {
+    pub buffer: Vec<u8>,
+    pub size: usize,
+    pub sender_addr: SocketAddr,
+}
+
 pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = Error> {
     info!("Going to discover available SAT>IP servers");
 
@@ -60,21 +48,27 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         )
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
         .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
-        .map(|discovery_response| {
-            match discovery_response {
-                Some((socket, buffer, size, sender)) => {
-                    debug!("Received {} bytes discovery message from {:?}", size, sender);
-                    trace!("Discovered:\n{}",
-                           String::from_utf8(buffer.clone()).unwrap_or("<Unable to parse result>".to_string()));
-                    Some((socket, buffer, size, sender))
-                }
-                None => {
-                    info!("SAT>IP server discovery finished but found no servers");
-                    None
-                }
-            }
-        })
+        .map(log_discovery_response)
         .map(|_| ())
+}
+
+fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Vec<u8> {
+    debug!("Generating discovery request for target '{}' using user agent '{}'",
+           target_address.to_string(),
+           user_agent);
+
+    let request = Request::builder().method("M-SEARCH").uri("*")
+        .header("HOST", target_address.to_string())
+        .header("MAN", "ssdp:discover")
+        .header("MX", "2")
+        .header("ST", "urn:ses-com:device:SatIPServer:1")
+        .header("USER-AGENT", user_agent).body(()).unwrap();
+    let serialized_request: Vec<u8> = RenderableRequest(request).into();
+
+    trace!("Generated request:\n{}",
+           String::from_utf8(serialized_request.clone()).unwrap_or("<unable to stringify>".to_string()));
+
+    serialized_request
 }
 
 fn parse_address(address_string: &str) -> Result<SocketAddr, Error> {
@@ -109,10 +103,11 @@ fn send_discovery_request(socket: UdpSocket,
 }
 
 fn wait_for_discovery_responses(socket: UdpSocket, wait_time: Duration) ->
-impl Future<Item = Option<(UdpSocket, Vec<u8>, usize, SocketAddr)>, Error = Error> {
+impl Future<Item = Option<RawDiscoveryResponse>, Error = Error> {
     let buffer = [0u8; 65_536].to_vec();
     debug!("Waiting for discovery message to arrive on {:?}", socket);
     socket.recv_dgram(buffer)
+        .map(|(_, buffer, size, sender_addr)| RawDiscoveryResponse { buffer, size, sender_addr })
         .map_err(|err| Error {
             error_type: ErrorType::ReceivingDiscoveryMessageError,
             message: format!("Error receiving discovery response. Cause {}", err)
@@ -142,5 +137,19 @@ fn get_timer_error_message(err: tokio::timer::timeout::Error<Error>) -> Error {
     Error {
         error_type: ErrorType::ServerDiscoveryTimeoutError,
         message: format!("Timer related error while waiting for discovery replies: {}", err).to_string()
+    }
+}
+
+fn log_discovery_response(discovery_response: Option<RawDiscoveryResponse>) -> Option<RawDiscoveryResponse> {
+    match discovery_response {
+        Some(response) => {
+            debug!("Received {} bytes discovery message from {:?}", response.size, response.sender_addr);
+            trace!("Discovered:\n{}", String::from_utf8_lossy(response.buffer.clone().as_slice()));
+            Some(response)
+        }
+        None => {
+            info!("SAT>IP server discovery finished but found no servers");
+            None
+        }
     }
 }
