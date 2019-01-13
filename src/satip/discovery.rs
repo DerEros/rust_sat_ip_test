@@ -11,7 +11,8 @@ use hyper::Request;
 use std::time::Duration;
 use http::uri::Uri;
 use httparse::{Response, EMPTY_HEADER, Status::Complete, Status::Partial, Header};
-use http::uri::Parts;
+use http::uri::Authority;
+use hyper::Client;
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -42,6 +43,9 @@ pub struct DiscoveryResponse {
     pub description_location: Uri,
     pub usn: String,
 }
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SatIpServer {}
 
 fn find_header<'a>(name: &str, headers: &'a [Header]) -> Option<&'a [u8]> {
     headers.iter().find(|h| h.name.eq(name)).map(|header| header.value)
@@ -88,8 +92,10 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
             .map(log_discovery_response)
             .map(move |raw| raw.map(|r| parse_discovery_response(config.prefer_source_addr, r)))
         )
-        .map(|satip_server| info!("Discovered SAT>IP server: {:?}", satip_server))
+        .map(|satip_server| { info!("Discovered SAT>IP server: {:?}", satip_server); satip_server })
+        .and_then(|wrapped_discovery_response| get_device_description(wrapped_discovery_response.unwrap().unwrap()))
         .map(|_| ())
+        .map_err(|err| { error!("Error discovering servers: {:?}", err); err })
 }
 
 fn search_servers_request(target_address: SocketAddr, user_agent: &str) -> Vec<u8> {
@@ -239,9 +245,29 @@ fn replace_source(new_source: SocketAddr, response: DiscoveryResponse) -> Discov
     let original_uri = response.description_location;
     let uri = Uri::builder()
         .path_and_query(original_uri.path_and_query().unwrap().clone())
-        .authority(original_uri.authority_part().unwrap().clone())
+        .authority(Authority::from_str(new_source.ip().to_string().as_ref()).unwrap())
         .scheme(original_uri.scheme_part().unwrap().clone())
         .build()
         .unwrap();
     DiscoveryResponse { description_location: uri, .. response }
+}
+
+fn get_device_description(discovery_response: DiscoveryResponse)
+    -> impl Future<Item = Vec<u8>, Error = Error> {
+
+    let client = Client::new();
+    client.get(discovery_response.description_location)
+        .map(|response| {
+            Vec::new()
+        })
+        .map_err(|err| Error {
+            error_type: ErrorType::CouldNotRetrieveServerDescription,
+            message: format!("Unable to retrieve server description. Encountered error: {}", err)
+        })
+}
+
+fn parse_device_description(raw_response: Vec<u8>) -> SatIpServer {
+
+
+    SatIpServer {}
 }

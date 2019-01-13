@@ -9,6 +9,7 @@ pub enum ErrorType {
     ServerDiscoveryTimeoutError,
     ServerDiscoveryUnknownTimeoutError,
     CouldNotParseDiscoveryResponse,
+    CouldNotRetrieveServerDescription,
 }
 
 #[derive(Debug)]
