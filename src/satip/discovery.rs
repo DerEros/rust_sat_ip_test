@@ -42,6 +42,34 @@ pub struct DiscoveryResponse {
     pub usn: String,
 }
 
+fn find_header<'a>(name: &str, headers: &'a [Header]) -> Option<&'a [u8]> {
+    headers.iter().find(|h| h.name.eq(name)).map(|header| header.value)
+}
+
+impl <'headers, 'buf> From<Response<'headers, 'buf>> for DiscoveryResponse {
+    fn from(response: Response<'headers, 'buf>) -> Self {
+        DiscoveryResponse {
+            usn: find_header("USN", response.headers)
+                .map(String::from_utf8_lossy)
+                .map(|cow_string| String::from(cow_string))
+                .unwrap_or("".to_string()),
+            description_location: find_header("LOCATION", response.headers)
+                .map(String::from_utf8_lossy)
+                .map(|cow_string| String::from(cow_string))
+                .map(|uri_str| Uri::from_str(uri_str.as_ref()))
+                .map(|uri_parse_result| {
+                    match uri_parse_result {
+                        Ok(uri) => uri,
+                        Err(e) => {
+                            warn!("Error parsing discovered location URI: {}", e);
+                            Uri::from_str("http://invalid.inv").unwrap()
+                        }
+                    }
+                }).unwrap()
+        }
+    }
+}
+
 pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = Error> {
     info!("Going to discover available SAT>IP servers");
 
@@ -58,6 +86,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
         .map(log_discovery_response)
         .map(|raw_response| raw_response.map(parse_discovery_response))
+        .map(|satip_server| info!("Discovered SAT>IP server: {:?}", satip_server))
         .map(|_| ())
 }
 
@@ -166,15 +195,14 @@ fn log_discovery_response(discovery_response: Option<RawDiscoveryResponse>) -> O
 fn parse_discovery_response(raw_response: RawDiscoveryResponse) -> Result<DiscoveryResponse, Error> {
     debug!("Parsing raw discovery response from {}", raw_response.sender_addr);
 
-    let mut headers = [httparse::EMPTY_HEADER; 16];
+    let mut headers = [EMPTY_HEADER; 16];
     let mut response = httparse::Response::new(&mut headers);
 
     match response.parse(raw_response.buffer.as_ref()) {
         Ok(Complete(size)) => {
             debug!("Parsed response headers of size {}", size);
             trace_parsed_response(&response);
-            Ok(DiscoveryResponse { usn: "foo".to_string(), description_location: Uri::from_str
-                ("http://foo.com").unwrap() })
+            Ok(response.into())
         },
         Ok(Partial) => Err(Error {
             error_type: ErrorType::CouldNotParseDiscoveryResponse,
