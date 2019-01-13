@@ -10,6 +10,7 @@ use tokio::prelude::future::IntoFuture;
 use hyper::Request;
 use std::time::Duration;
 use http::uri::Uri;
+use httparse::{Response, EMPTY_HEADER, Status::Complete, Status::Partial, Header};
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -163,10 +164,42 @@ fn log_discovery_response(discovery_response: Option<RawDiscoveryResponse>) -> O
 }
 
 fn parse_discovery_response(raw_response: RawDiscoveryResponse) -> Result<DiscoveryResponse, Error> {
+    debug!("Parsing raw discovery response from {}", raw_response.sender_addr);
 
+    let mut headers = [httparse::EMPTY_HEADER; 16];
+    let mut response = httparse::Response::new(&mut headers);
 
-    Err(Error {
-        error_type: ErrorType::CouldNotParseDiscoveryResponse,
-        message: "Could not parse discovery response".to_string()
-    })
+    match response.parse(raw_response.buffer.as_ref()) {
+        Ok(Complete(size)) => {
+            debug!("Parsed response headers of size {}", size);
+            trace_parsed_response(&response);
+            Ok(DiscoveryResponse { usn: "foo".to_string(), description_location: Uri::from_str
+                ("http://foo.com").unwrap() })
+        },
+        Ok(Partial) => Err(Error {
+            error_type: ErrorType::CouldNotParseDiscoveryResponse,
+            message: format!("Received incomplete discovery response from {:?}", raw_response.sender_addr)
+        }),
+        Err(e) => Err(Error {
+            error_type: ErrorType::CouldNotParseDiscoveryResponse,
+            message: format!("Could not parse discovery response. Got parse error: {}", e)
+        })
+    }
+        .map(|r| {debug!("Parsing successful"); r})
+        .map_err(|e| {error!("Parsing not successful: {:?}", e); e})
+}
+
+fn trace_parsed_response(response: &Response) -> () {
+    let mut header_str = String::new();
+    for Header{ name, value } in response.headers.iter() {
+        header_str += format!("\tName: {}; Value: {}\n", name, String::from_utf8_lossy(value))
+            .as_str();
+    }
+
+    trace!("\nHTTP Version: {}\nStatus Code: {}\nReason: {}\nHeaders:\n{}",
+        response.version.map(|v| v.to_string()).unwrap_or("<none>".to_string()),
+        response.code.map(|c| c.to_string()).unwrap_or("<none>".to_string()),
+        response.reason.map(String::from).unwrap_or("<none>".to_string()),
+        header_str,
+    );
 }
