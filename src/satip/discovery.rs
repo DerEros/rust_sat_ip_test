@@ -11,6 +11,7 @@ use hyper::Request;
 use std::time::Duration;
 use http::uri::Uri;
 use httparse::{Response, EMPTY_HEADER, Status::Complete, Status::Partial, Header};
+use http::uri::Parts;
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -83,9 +84,10 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
             send_discovery_request(context.socket, context.broadcast_address, request)
         )
         .map_err(|err| { error!("Could not send discovery request. Cause: {}", err); err } )
-        .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time))
-        .map(log_discovery_response)
-        .map(|raw_response| raw_response.map(parse_discovery_response))
+        .and_then(move |socket| wait_for_discovery_responses(socket, config.discovery_wait_time)
+            .map(log_discovery_response)
+            .map(move |raw| raw.map(|r| parse_discovery_response(config.prefer_source_addr, r)))
+        )
         .map(|satip_server| info!("Discovered SAT>IP server: {:?}", satip_server))
         .map(|_| ())
 }
@@ -192,7 +194,7 @@ fn log_discovery_response(discovery_response: Option<RawDiscoveryResponse>) -> O
     }
 }
 
-fn parse_discovery_response(raw_response: RawDiscoveryResponse) -> Result<DiscoveryResponse, Error> {
+fn parse_discovery_response(prefer_source_addr: bool, raw_response: RawDiscoveryResponse) -> Result<DiscoveryResponse, Error> {
     debug!("Parsing raw discovery response from {}", raw_response.sender_addr);
 
     let mut headers = [EMPTY_HEADER; 16];
@@ -213,6 +215,7 @@ fn parse_discovery_response(raw_response: RawDiscoveryResponse) -> Result<Discov
             message: format!("Could not parse discovery response. Got parse error: {}", e)
         })
     }
+        .map(|r| if prefer_source_addr { replace_source(raw_response.sender_addr, r) } else {r})
         .map(|r| {debug!("Parsing successful"); r})
         .map_err(|e| {error!("Parsing not successful: {:?}", e); e})
 }
@@ -230,4 +233,15 @@ fn trace_parsed_response(response: &Response) -> () {
         response.reason.map(String::from).unwrap_or("<none>".to_string()),
         header_str,
     );
+}
+
+fn replace_source(new_source: SocketAddr, response: DiscoveryResponse) -> DiscoveryResponse {
+    let original_uri = response.description_location;
+    let uri = Uri::builder()
+        .path_and_query(original_uri.path_and_query().unwrap().clone())
+        .authority(original_uri.authority_part().unwrap().clone())
+        .scheme(original_uri.scheme_part().unwrap().clone())
+        .build()
+        .unwrap();
+    DiscoveryResponse { description_location: uri, .. response }
 }

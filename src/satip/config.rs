@@ -6,6 +6,7 @@ pub struct Config {
     pub discovery_broadcast_address: &'static str,
     pub discovery_wait_time: Duration,
     pub user_agent: &'static str,
+    pub prefer_source_addr: bool,
 }
 
 pub fn default_config() -> Config {
@@ -15,5 +16,6 @@ pub fn default_config() -> Config {
         discovery_broadcast_address : "239.255.255.250:1900",
         discovery_wait_time: Duration::from_secs(5),
         user_agent: "Linux/1.0 UPnP/1.1 ernasatip/1.0",
+        prefer_source_addr: true,
     }
 }
