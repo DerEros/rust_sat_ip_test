@@ -257,18 +257,13 @@ fn get_device_description(discovery_response: DiscoveryResponse)
 
     let client = Client::new();
     client.get(discovery_response.description_location)
-        .map(|response| {
-            let r = response
-                .into_body()
-                .collect()
-                .wait()
-                .unwrap()
-                .iter()
-                .fold(Vec::with_capacity(1_024),
-                      |mut acc, chunk| { acc.extend_from_slice(chunk.as_ref()); acc});
-
-            r
-        })
+        .and_then(|response| response
+            .into_body()
+            .collect()
+            .map(|chunks| chunks.iter().fold(Vec::with_capacity(1_024),
+                  |mut acc, chunk| { acc.extend_from_slice(chunk.as_ref()); acc})
+            )
+        )
         .map_err(|err| Error {
             error_type: ErrorType::CouldNotRetrieveServerDescription,
             message: format!("Unable to retrieve server description. Encountered error: {}", err)
