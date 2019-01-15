@@ -268,6 +268,7 @@ fn get_device_description(discovery_response: DiscoveryResponse)
             error_type: ErrorType::CouldNotRetrieveServerDescription,
             message: format!("Unable to retrieve server description. Encountered error: {}", err)
         })
+        .inspect(|buffer| trace!("Received device description:\n{}", String::from_utf8_lossy(buffer)))
 }
 
 fn parse_device_description(raw_response: Vec<u8>) -> SatIpServer {
