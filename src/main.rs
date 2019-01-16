@@ -4,6 +4,7 @@ extern crate log4rs;
 extern crate tokio;
 extern crate futures;
 extern crate http;
+extern crate minidom;
 
 mod satip;
 

@@ -13,6 +13,7 @@ use http::uri::Uri;
 use httparse::{Response, EMPTY_HEADER, Status::Complete, Status::Partial, Header};
 use http::uri::Authority;
 use hyper::Client;
+use minidom::Element;
 
 #[derive(Debug)]
 struct DiscoveryContext {
@@ -94,6 +95,7 @@ pub fn discover_satip_servers(config: Config) -> impl Future<Item = (), Error = 
         )
         .map(|satip_server| { info!("Discovered SAT>IP server: {:?}", satip_server); satip_server })
         .and_then(|wrapped_discovery_response| get_device_description(wrapped_discovery_response.unwrap().unwrap()))
+        .and_then(parse_device_description)
         .map(|_| ())
         .map_err(|err| { error!("Error discovering servers: {:?}", err); err })
 }
@@ -268,11 +270,30 @@ fn get_device_description(discovery_response: DiscoveryResponse)
             error_type: ErrorType::CouldNotRetrieveServerDescription,
             message: format!("Unable to retrieve server description. Encountered error: {}", err)
         })
-        .inspect(|buffer| trace!("Received device description:\n{}", String::from_utf8_lossy(buffer)))
+        .inspect(|buffer|
+            trace!("Received device description:\n{}", String::from_utf8_lossy(buffer))
+        )
 }
 
-fn parse_device_description(raw_response: Vec<u8>) -> SatIpServer {
+fn parse_device_description(raw_response: Vec<u8>) -> Result<SatIpServer, Error> {
 
+    let element =
+        String::from_utf8_lossy(raw_response.as_ref())
+            .parse()
+            .map(|element: Element| (extract_manufacturer(&element), extract_model_name(&element)))
+            .map(|name| { info!("Name: {:?}", name); name });
 
-    SatIpServer {}
+    Ok(SatIpServer {})
+}
+
+fn extract_manufacturer(root: &Element) -> Option<String> {
+    root.get_child("device", "")
+        .and_then(|device_node| device_node.get_child("manufacturer", ""))
+        .map(|manufacturer_node| manufacturer_node.text())
+}
+
+fn extract_model_name(root: &Element) -> Option<String> {
+    root.get_child("device", "")
+        .and_then(|device_node| device_node.get_child("modelName", ""))
+        .map(|manufacturer_node| manufacturer_node.text())
 }
